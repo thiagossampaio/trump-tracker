@@ -295,6 +295,7 @@ Implementa `agents/publish_agent.py`: transforma artigos aprovados em eventos p�
 | Campo | Valor |
 |---|---|
 | **ID** | WP-05 |
+| **Status** | ✅ Concluído |
 | **Spec relacionada** | [SPEC-05](specs.md#spec-05--orquestração-cicd) |
 | **Estimativa** | 0.5d |
 | **Dependências** | WP-04 |

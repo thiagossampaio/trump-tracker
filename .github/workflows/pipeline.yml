@@ -1,0 +1,67 @@
+name: Trump Tracker Pipeline
+
+on:
+  schedule:
+    - cron: '0 */2 * * *'  # a cada 2h: 00:00, 02:00, 04:00...
+  workflow_dispatch:
+    inputs:
+      lookback_hours:
+        description: 'Janela de busca do ingest (horas)'
+        default: '4'
+        required: false
+        type: string
+      dry_run:
+        description: 'Dry run — executa sem gravar no banco'
+        default: false
+        required: false
+        type: boolean
+
+jobs:
+  pipeline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    env:
+      # Flags derivadas dos inputs (vazias em runs de cron)
+      DRY_RUN_FLAG: ${{ inputs.dry_run == true && '--dry-run' || '' }}
+      LOOKBACK_HOURS: ${{ inputs.lookback_hours || '4' }}
+
+      # Secrets → variáveis de ambiente para todos os agentes
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      NEWSAPI_KEY: ${{ secrets.NEWSAPI_KEY }}
+      GUARDIAN_API_KEY: ${{ secrets.GUARDIAN_API_KEY }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      REVALIDATE_SECRET: ${{ secrets.REVALIDATE_SECRET }}
+      NEXT_PUBLIC_SITE_URL: ${{ secrets.NEXT_PUBLIC_SITE_URL }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Ingest
+        run: python agents/ingest_agent.py --lookback-hours $LOOKBACK_HOURS $DRY_RUN_FLAG
+
+      - name: Classify
+        run: python agents/classify_agent.py $DRY_RUN_FLAG
+
+      - name: Dedup
+        run: python agents/dedup_agent.py $DRY_RUN_FLAG
+
+      - name: Telegram Review
+        run: python agents/telegram_agent.py $DRY_RUN_FLAG
+
+      - name: Publish
+        run: python agents/publish_agent.py $DRY_RUN_FLAG
