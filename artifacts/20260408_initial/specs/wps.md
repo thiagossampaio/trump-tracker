@@ -550,7 +550,7 @@ Implementa `/api/og` para geração dinâmica de OG images, `/api/revalidate` pa
 
 ---
 
-### WP-10 — Backfill Histórico
+### WP-10 — Backfill Histórico ✅ Concluído
 
 | Campo | Valor |
 |---|---|
@@ -559,6 +559,7 @@ Implementa `/api/og` para geração dinâmica de OG images, `/api/revalidate` pa
 | **Estimativa** | 2d |
 | **Dependências** | WP-05 |
 | **Pode paralelizar com** | WP-09 |
+| **Status** | ✅ Concluído |
 
 **Escopo**
 
@@ -583,11 +584,11 @@ Implementa `agents/backfill_agent.py` com suporte a janelas históricas desde a 
 
 **Critérios de aceite do pacote**
 
-- [ ] `python agents/backfill_agent.py --from 2025-01-20 --to 2025-02-20 --dry-run` executa sem erro
-- [ ] Ao menos 5 eventos âncora da posse inseridos manualmente na tabela `events`
-- [ ] Backfill de 30 dias executado sem duplicatas (verificar UNIQUE em URL)
-- [ ] Estratégia "long" usa threshold 0.95 (verificar log)
-- [ ] `--dry-run` não escreve no banco
+- [x] `python agents/backfill_agent.py --from 2025-01-20 --to 2025-02-20 --dry-run` executa sem erro
+- [x] Ao menos 5 eventos âncora da posse inseridos via `supabase/seed_anchor_events.sql`
+- [x] Backfill de 30 dias executado sem duplicatas (verificar UNIQUE em URL)
+- [x] Estratégia "long" usa threshold 0.95 (verificar log)
+- [x] `--dry-run` não escreve no banco
 
 **Áreas impactadas**
 > [backend] `agents/backfill_agent.py`, `agents/dedup_agent.py` (adição de `--dedup-threshold`) | [banco] tabela `events` (seed manual)

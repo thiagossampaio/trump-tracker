@@ -191,6 +191,7 @@ def hours_diff(article_published_at: str, event_occurred_at: str) -> float:
 def decide_action(
     article: dict,
     similar_events: list[dict],
+    dedup_threshold: float = THRESH_DUPLICATE,
 ) -> tuple[str, str | None]:
     """
     Aplica tabela de decisão por similaridade cosine.
@@ -212,7 +213,7 @@ def decide_action(
     best = similar_events[0]
     sim = best["similarity"]  # pré-calculado pelo SQL: 1 - cosine_distance
 
-    if sim >= THRESH_DUPLICATE:
+    if sim >= dedup_threshold:
         # Duplicata incondicional
         return "rejected_duplicate", best["id"]
 
@@ -313,7 +314,7 @@ def apply_decision(
 
 # ── Orquestração principal ────────────────────────────────────────────────────
 
-async def run(dry_run: bool = False, limit: int | None = None) -> DedupReport:
+async def run(dry_run: bool = False, limit: int | None = None, dedup_threshold: float = THRESH_DUPLICATE) -> DedupReport:
     check_env()
 
     supabase: Client = create_client(
@@ -350,7 +351,7 @@ async def run(dry_run: bool = False, limit: int | None = None) -> DedupReport:
             continue
 
         similar_events = find_similar_events(supabase, embedding)
-        action, event_id = decide_action(article, similar_events)
+        action, event_id = decide_action(article, similar_events, dedup_threshold)
 
         sim_info = ""
         if similar_events:
@@ -390,8 +391,12 @@ def main():
     parser = argparse.ArgumentParser(description="Trump Tracker — Dedup Agent")
     parser.add_argument("--dry-run", action="store_true", help="Executa sem gravar no banco")
     parser.add_argument("--limit", type=int, default=None, help="Limite de artigos a processar")
+    parser.add_argument(
+        "--dedup-threshold", type=float, default=THRESH_DUPLICATE,
+        help=f"Threshold cosine para duplicatas (padrão {THRESH_DUPLICATE}; use 0.95 para backfill longo)",
+    )
     args = parser.parse_args()
-    asyncio.run(run(dry_run=args.dry_run, limit=args.limit))
+    asyncio.run(run(dry_run=args.dry_run, limit=args.limit, dedup_threshold=args.dedup_threshold))
 
 
 if __name__ == "__main__":
