@@ -51,9 +51,23 @@ export default async function HomePage({
   const { events, nextCursor } = await makeInitialFetcher(category)();
 
   return (
-    <main className="mx-auto max-w-2xl px-4 py-6 space-y-4">
+    <main className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-4 py-6 sm:px-6 sm:py-8">
+      <section className="rounded-xl border border-border bg-card px-4 py-4 shadow-xs sm:px-5">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+          Data Journalism Feed
+        </p>
+        <h2 className="mt-2 text-xl leading-tight font-semibold sm:text-2xl">
+          Eventos sem precedentes da política americana, com classificação factual.
+        </h2>
+        <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+          Cada item reúne fonte verificável, categoria editorial e Aberration
+          Score para leitura rápida no mobile e contexto aprofundado no detalhe.
+        </p>
+      </section>
+
       <CategoryFilter currentCategory={category} />
       <InfiniteScroll
+        key={category ?? "all"}
         initialEvents={events}
         initialNextCursor={nextCursor}
         category={category}

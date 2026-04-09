@@ -38,12 +38,16 @@ export const VALID_CATEGORIES = [
 
 export type Category = (typeof VALID_CATEGORIES)[number];
 
-export const CATEGORY_EMOJIS: Record<string, string> = {
-  Institucional: "🏛️",
-  Econômico: "💰",
-  Diplomático: "🤝",
-  Jurídico: "⚖️",
-  Militar: "🎖️",
-  Social: "👥",
-  Comunicação: "📢",
+export const CATEGORY_LABELS: Record<string, string> = {
+  Institucional: "Institucional",
+  Econômico: "Econômico",
+  Diplomático: "Diplomático",
+  Jurídico: "Jurídico",
+  Militar: "Militar",
+  Social: "Social",
+  Comunicação: "Comunicação",
 };
+
+export function getCategoryLabel(category: string): string {
+  return CATEGORY_LABELS[category] ?? category;
+}

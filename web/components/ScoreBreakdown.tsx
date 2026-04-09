@@ -19,25 +19,25 @@ export default function ScoreBreakdown({
   if (!breakdown) return null;
 
   return (
-    <div className="space-y-2">
-      <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+    <section className="flex flex-col gap-3">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
         Breakdown do Score
       </p>
-      <div className="space-y-2">
+      <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4">
         {DIMENSIONS.map(({ key, label, max }) => {
           const value = breakdown[key] ?? 0;
           const pct = max > 0 ? (value / max) * 100 : 0;
           return (
-            <div key={key}>
-              <div className="mb-1 flex items-center justify-between text-xs">
+            <div key={key} className="flex flex-col gap-1.5">
+              <div className="flex items-center justify-between text-xs">
                 <span className="text-muted-foreground">{label}</span>
                 <span className="tabular-nums font-medium">
                   {value}/{max}
                 </span>
               </div>
-              <div className="h-1.5 w-full rounded-full bg-secondary">
+              <div className="h-2 w-full rounded-full bg-secondary">
                 <div
-                  className="h-1.5 rounded-full bg-primary transition-all"
+                  className="h-2 rounded-full bg-primary transition-all"
                   style={{ width: `${pct}%` }}
                 />
               </div>
@@ -45,6 +45,6 @@ export default function ScoreBreakdown({
           );
         })}
       </div>
-    </div>
+    </section>
   );
 }

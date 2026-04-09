@@ -1,7 +1,19 @@
 import Link from "next/link";
+import Image from "next/image";
+import { Globe, Newspaper } from "lucide-react";
 import type { Event } from "@/lib/events";
-import { CATEGORY_EMOJIS } from "@/lib/events";
+import { getCategoryLabel } from "@/lib/events";
 import AberrationBadge from "@/components/AberrationBadge";
+import { Badge } from "@/components/ui/badge";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { buildGoogleFaviconUrl, getSourceHost } from "@/lib/sources";
 
 function formatDate(iso: string): string {
   return new Intl.DateTimeFormat("pt-BR", {
@@ -12,38 +24,58 @@ function formatDate(iso: string): string {
 }
 
 export default function EventCard({ event }: { event: Event }) {
-  const emoji = CATEGORY_EMOJIS[event.category] ?? "📌";
+  const categoryLabel = getCategoryLabel(event.category);
+  const sourceHost = getSourceHost(event.source_url);
+  const faviconUrl = buildGoogleFaviconUrl(event.source_url, 32);
 
   return (
-    <article className="group relative rounded-xl border border-border bg-card px-4 py-4 text-card-foreground ring-1 ring-foreground/5 transition-shadow hover:ring-foreground/15">
-      <div className="flex flex-wrap items-center gap-2">
-        <AberrationBadge score={event.score} />
-        <span className="text-xs text-muted-foreground">
-          {emoji} {event.category}
-        </span>
-      </div>
-
-      <p className="mt-2 line-clamp-2 text-sm font-semibold leading-snug group-hover:text-primary">
-        <Link
-          href={`/event/${event.slug}`}
-          className="after:absolute after:inset-0"
-        >
-          {event.headline}
-        </Link>
-      </p>
-
-      <div className="relative z-10 mt-2 flex items-center gap-1 text-xs text-muted-foreground">
-        <time dateTime={event.occurred_at}>{formatDate(event.occurred_at)}</time>
-        <span aria-hidden>·</span>
-        <a
-          href={event.source_url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="underline-offset-2 hover:underline"
-        >
-          {event.source_name}
-        </a>
-      </div>
+    <article>
+      <Card className="border border-border shadow-xs transition-shadow hover:shadow-md">
+        <CardHeader className="gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <AberrationBadge score={event.score} />
+            <Badge variant="secondary" className="font-medium">
+              {categoryLabel}
+            </Badge>
+          </div>
+          <CardTitle className="text-base leading-snug sm:text-lg">
+            <Link href={`/event/${event.slug}`} className="hover:text-primary">
+              {event.headline}
+            </Link>
+          </CardTitle>
+          <CardDescription className="line-clamp-2 text-sm leading-relaxed">
+            {event.summary}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="pb-0" />
+        <CardFooter className="relative z-10 flex items-center justify-between gap-2">
+          <time className="text-xs text-muted-foreground" dateTime={event.occurred_at}>
+            {formatDate(event.occurred_at)}
+          </time>
+          <a
+            href={event.source_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+          >
+            {faviconUrl ? (
+              <Image
+                src={faviconUrl}
+                alt=""
+                width={16}
+                height={16}
+                className="size-4 rounded-sm"
+              />
+            ) : (
+              <Globe className="size-4" />
+            )}
+            <span className="max-w-[11rem] truncate">
+              {event.source_name || sourceHost || "Fonte primária"}
+            </span>
+            <Newspaper className="size-4" />
+          </a>
+        </CardFooter>
+      </Card>
     </article>
   );
 }

@@ -16,17 +16,21 @@ export default function CategoryFilter({
 
   function handleChange(cat: string) {
     if (cat === "Todos") {
-      router.push("/");
+      router.push("/", { scroll: false });
     } else {
-      router.push(`/?category=${encodeURIComponent(cat)}`);
+      router.push(`/?category=${encodeURIComponent(cat)}`, { scroll: false });
     }
   }
 
   return (
-    <Tabs value={value} onValueChange={handleChange}>
-      <TabsList className="h-auto w-full overflow-x-auto rounded-lg">
+    <Tabs value={value} onValueChange={handleChange} className="w-full">
+      <TabsList className="h-auto w-full justify-start overflow-x-auto rounded-xl border border-border bg-card p-1">
         {ALL_TABS.map((cat) => (
-          <TabsTrigger key={cat} value={cat} className="shrink-0">
+          <TabsTrigger
+            key={cat}
+            value={cat}
+            className="shrink-0 rounded-lg px-3 text-xs font-medium sm:text-sm"
+          >
             {cat}
           </TabsTrigger>
         ))}

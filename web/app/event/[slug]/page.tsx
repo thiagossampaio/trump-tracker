@@ -1,11 +1,23 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import type { Metadata } from "next";
+import { ArrowLeft, Globe, Link2 } from "lucide-react";
 import { getSupabase } from "@/lib/supabase";
-import { CATEGORY_EMOJIS, type EventDetail } from "@/lib/events";
+import { getCategoryLabel, type EventDetail } from "@/lib/events";
 import AberrationBadge from "@/components/AberrationBadge";
 import ScoreBreakdown from "@/components/ScoreBreakdown";
 import ShareButton from "@/components/ShareButton";
+import { Badge } from "@/components/ui/badge";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+import { buildGoogleFaviconUrl, getSourceHost } from "@/lib/sources";
 
 function formatDate(iso: string): string {
   return new Intl.DateTimeFormat("pt-BR", {
@@ -66,52 +78,65 @@ export default async function EventPage({
   const event = await fetchEvent(slug);
   if (!event) notFound();
 
-  const emoji = CATEGORY_EMOJIS[event.category] ?? "📌";
+  const categoryLabel = getCategoryLabel(event.category);
+  const sourceHost = getSourceHost(event.source_url);
+  const faviconUrl = buildGoogleFaviconUrl(event.source_url, 32);
 
   return (
-    <main className="mx-auto max-w-2xl px-4 py-6 space-y-6">
+    <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-6 sm:px-6 sm:py-8">
       <Link
         href="/"
-        className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
       >
-        ← Voltar ao feed
+        <ArrowLeft className="size-4" />
+        Voltar ao feed
       </Link>
 
-      <article className="space-y-4">
-        {/* Badge + categoria */}
+      <article className="flex flex-col gap-5">
         <div className="flex flex-wrap items-center gap-2">
           <AberrationBadge score={event.score} />
-          <span className="text-xs text-muted-foreground">
-            {emoji} {event.category}
-          </span>
+          <Badge variant="secondary">{categoryLabel}</Badge>
         </div>
 
-        {/* Headline */}
-        <h1 className="text-xl font-bold leading-snug">{event.headline}</h1>
+        <h1 className="text-2xl leading-tight font-semibold sm:text-3xl">
+          {event.headline}
+        </h1>
 
-        {/* Meta: data + fonte */}
-        <div className="flex flex-wrap items-center gap-1 text-sm text-muted-foreground">
+        <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
           <time dateTime={event.occurred_at}>{formatDate(event.occurred_at)}</time>
-          <span aria-hidden>·</span>
           <a
             href={event.source_url}
             target="_blank"
             rel="noopener noreferrer"
-            className="underline-offset-2 hover:underline"
+            className="inline-flex items-center gap-1.5 underline-offset-2 hover:text-foreground hover:underline"
           >
+            {faviconUrl ? (
+              <Image
+                src={faviconUrl}
+                alt=""
+                width={16}
+                height={16}
+                className="size-4 rounded-sm"
+              />
+            ) : (
+              <Globe className="size-4" />
+            )}
             {event.source_name}
+            <span className="text-[11px] text-muted-foreground/90">
+              ({sourceHost ?? "origem"})
+            </span>
           </a>
           {event.secondary_sources && event.secondary_sources.length > 0 && (
             <>
-              <span aria-hidden>·</span>
               {event.secondary_sources.map((src, i) => (
                 <a
                   key={i}
                   href={src}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="underline-offset-2 hover:underline"
+                  className="inline-flex items-center gap-1 underline-offset-2 hover:text-foreground hover:underline"
                 >
+                  <Link2 className="size-4" />
                   Fonte {i + 2}
                 </a>
               ))}
@@ -119,28 +144,31 @@ export default async function EventPage({
           )}
         </div>
 
-        <hr className="border-border" />
+        <Separator />
 
-        {/* Summary */}
-        <p className="text-sm leading-relaxed">{event.summary}</p>
+        <p className="text-base leading-relaxed">{event.summary}</p>
 
-        {/* Historical context */}
         {event.historical_context && (
-          <div className="rounded-lg border border-border bg-muted/40 px-4 py-3 text-sm leading-relaxed text-muted-foreground">
-            <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-foreground">
-              Contexto histórico
-            </p>
-            {event.historical_context}
-          </div>
+          <Card className="border border-border shadow-xs">
+            <CardHeader>
+              <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                Contexto histórico
+              </CardTitle>
+              <CardDescription className="sr-only">
+                Contexto comparativo com padrões presidenciais históricos
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-0 text-sm leading-relaxed text-muted-foreground">
+              {event.historical_context}
+            </CardContent>
+          </Card>
         )}
 
-        <hr className="border-border" />
+        <Separator />
 
-        {/* Score breakdown */}
         <ScoreBreakdown breakdown={event.score_breakdown} />
 
-        {/* Share */}
-        <div className="pt-2">
+        <div className="pt-1">
           <ShareButton title={event.headline} />
         </div>
       </article>
