@@ -17,6 +17,6 @@ pyyaml==6.0.1
 unidecode==1.3.8
 
 # Próximos agents (descomentar ao implementar):
-# anthropic==0.28.0          # classify_agent
-# openai==1.30.0             # embeddings (dedup_agent, publish_agent)
+anthropic==0.28.0          # classify_agent
+openai==1.30.0             # embeddings (dedup_agent, publish_agent)
 # python-telegram-bot==21.0  # telegram_agent

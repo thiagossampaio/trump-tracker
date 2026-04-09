@@ -28,9 +28,23 @@ CREATE TABLE IF NOT EXISTS raw_articles (
 
     -- Pipeline
     status       TEXT DEFAULT 'pending'
-                 CHECK (status IN ('pending','classified','rejected','published')),
+                 CHECK (status IN (
+                   'pending', 'classified', 'rejected',
+                   'approved', 'approved_manual',
+                   'pending_review', 'published'
+                 )),
     priority     BOOLEAN DEFAULT FALSE, -- keywords de alta prioridade no título
-    processed_at TIMESTAMPTZ            -- quando o classify_agent processou
+    processed_at TIMESTAMPTZ,           -- quando o classify_agent processou
+
+    -- Classificação (preenchido pelo classify_agent)
+    headline_pt        TEXT,
+    summary_pt         TEXT,
+    historical_context TEXT,
+    score              SMALLINT,
+    score_breakdown    JSONB,
+    category           TEXT,
+    confidence         TEXT,
+    needs_human_review BOOLEAN DEFAULT FALSE
 );
 
 CREATE INDEX IF NOT EXISTS idx_raw_articles_status
@@ -94,6 +108,31 @@ CREATE INDEX IF NOT EXISTS idx_events_score
 CREATE INDEX IF NOT EXISTS idx_events_embedding
     ON events USING ivfflat (embedding vector_cosine_ops)
     WITH (lists = 100);
+
+-- ──────────────────────────────────────────
+-- Migration: colunas de classificação + status expandido
+-- Executar apenas se a tabela já existia antes desta versão
+-- ──────────────────────────────────────────
+ALTER TABLE raw_articles
+  ADD COLUMN IF NOT EXISTS headline_pt        TEXT,
+  ADD COLUMN IF NOT EXISTS summary_pt         TEXT,
+  ADD COLUMN IF NOT EXISTS historical_context TEXT,
+  ADD COLUMN IF NOT EXISTS score              SMALLINT,
+  ADD COLUMN IF NOT EXISTS score_breakdown    JSONB,
+  ADD COLUMN IF NOT EXISTS category           TEXT,
+  ADD COLUMN IF NOT EXISTS confidence         TEXT,
+  ADD COLUMN IF NOT EXISTS needs_human_review BOOLEAN DEFAULT FALSE;
+
+ALTER TABLE raw_articles
+  DROP CONSTRAINT IF EXISTS raw_articles_status_check;
+
+ALTER TABLE raw_articles
+  ADD CONSTRAINT raw_articles_status_check
+    CHECK (status IN (
+      'pending', 'classified', 'rejected',
+      'approved', 'approved_manual',
+      'pending_review', 'published'
+    ));
 
 -- View para o feed público (exclui mesclados/removidos)
 CREATE OR REPLACE VIEW public_feed AS

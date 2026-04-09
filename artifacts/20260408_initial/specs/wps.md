@@ -31,6 +31,7 @@
 | Campo | Valor |
 |---|---|
 | **ID** | WP-00 |
+| **Status** | ✅ Concluído |
 | **Spec relacionada** | [SPEC-01](specs.md#spec-01--agente-de-classificação-ia), [SPEC-03](specs.md#spec-03--moderação-via-telegram), [SPEC-04](specs.md#spec-04--agente-de-publicação), [SPEC-05](specs.md#spec-05--orquestração-cicd) |
 | **Estimativa** | 0.5d |
 | **Dependências** | Nenhuma |
