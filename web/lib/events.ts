@@ -14,6 +14,18 @@ export type Event = {
   view_count: number;
 };
 
+export type ScoreBreakdown = {
+  precedent: number;        // 0–4
+  velocity: number;         // 0–2
+  inst_impact: number;      // 0–2
+  system_reaction: number;  // 0–2
+};
+
+export type EventDetail = Event & {
+  score_breakdown: ScoreBreakdown | null;
+  secondary_sources: string[] | null;
+};
+
 export const VALID_CATEGORIES = [
   "Institucional",
   "Econômico",

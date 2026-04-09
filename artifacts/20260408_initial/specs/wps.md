@@ -427,7 +427,7 @@ Implementa os componentes visuais do feed: `EventCard.tsx`, `AberrationBadge.tsx
 
 ---
 
-### WP-08 — Página Individual + Engajamento
+### WP-08 — Página Individual + Engajamento ✅ Concluído
 
 | Campo | Valor |
 |---|---|
@@ -436,6 +436,7 @@ Implementa os componentes visuais do feed: `EventCard.tsx`, `AberrationBadge.tsx
 | **Estimativa** | 1d |
 | **Dependências** | WP-07 |
 | **Pode paralelizar com** | — |
+| **Status** | ✅ Concluído |
 
 **Escopo**
 
@@ -468,12 +469,12 @@ Implementa `/event/[slug]` com detalhes completos do evento, score breakdown vis
 
 **Critérios de aceite do pacote**
 
-- [ ] `/event/{slug}` carrega com todos os detalhes do evento
-- [ ] `og:image` na meta tag aponta para `/api/og?slug={slug}`
-- [ ] Score breakdown exibe as 4 dimensões com valores corretos
-- [ ] Botão share abre Web Share API no mobile; copia URL no desktop
-- [ ] Slug inválido retorna 404
-- [ ] "← Voltar" leva de volta ao feed
+- [x] `/event/{slug}` carrega com todos os detalhes do evento
+- [x] `og:image` na meta tag aponta para `/api/og?slug={slug}`
+- [x] Score breakdown exibe as 4 dimensões com valores corretos
+- [x] Botão share abre Web Share API no mobile; copia URL no desktop
+- [x] Slug inválido retorna 404
+- [x] "← Voltar" leva de volta ao feed
 
 **Áreas impactadas**
 > [frontend] `web/app/event/[slug]/page.tsx`, `web/components/ShareButton.tsx`, `web/components/ScoreBreakdown.tsx`
