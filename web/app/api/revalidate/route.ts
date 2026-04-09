@@ -6,6 +6,6 @@ export async function POST(request: Request) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  revalidateTag("events-feed");
+  revalidateTag("events-feed", { expire: 0 });
   return Response.json({ revalidated: true, timestamp: Date.now() });
 }
