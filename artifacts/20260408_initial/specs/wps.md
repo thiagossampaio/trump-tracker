@@ -134,6 +134,7 @@ Implementa `agents/classify_agent.py` completo: lê artigos `pending`, classific
 | Campo | Valor |
 |---|---|
 | **ID** | WP-02 |
+| **Status** | ✅ Concluído |
 | **Spec relacionada** | [SPEC-02](specs.md#spec-02--agente-de-deduplicação-semântica) |
 | **Estimativa** | 1d |
 | **Dependências** | WP-01 |

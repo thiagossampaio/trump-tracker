@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS raw_articles (
     category           TEXT,
     confidence         TEXT,
     needs_human_review BOOLEAN DEFAULT FALSE
+    -- merged_into_id adicionado via ALTER TABLE abaixo (após criação da tabela events)
 );
 
 CREATE INDEX IF NOT EXISTS idx_raw_articles_status
@@ -121,7 +122,8 @@ ALTER TABLE raw_articles
   ADD COLUMN IF NOT EXISTS score_breakdown    JSONB,
   ADD COLUMN IF NOT EXISTS category           TEXT,
   ADD COLUMN IF NOT EXISTS confidence         TEXT,
-  ADD COLUMN IF NOT EXISTS needs_human_review BOOLEAN DEFAULT FALSE;
+  ADD COLUMN IF NOT EXISTS needs_human_review BOOLEAN DEFAULT FALSE,
+  ADD COLUMN IF NOT EXISTS merged_into_id     UUID REFERENCES events(id);
 
 ALTER TABLE raw_articles
   DROP CONSTRAINT IF EXISTS raw_articles_status_check;
@@ -133,6 +135,35 @@ ALTER TABLE raw_articles
       'approved', 'approved_manual',
       'pending_review', 'published'
     ));
+
+-- ──────────────────────────────────────────
+-- Função RPC para busca pgvector (usada pelo dedup_agent)
+-- ──────────────────────────────────────────
+CREATE OR REPLACE FUNCTION match_events(
+    query_embedding vector(1536),
+    match_count     int DEFAULT 5
+)
+RETURNS TABLE (
+    id          uuid,
+    slug        text,
+    occurred_at timestamptz,
+    distance    float,
+    similarity  float
+)
+LANGUAGE sql STABLE
+AS $$
+    SELECT
+        id,
+        slug,
+        occurred_at,
+        (embedding <=> query_embedding)         AS distance,
+        1.0 - (embedding <=> query_embedding)   AS similarity
+    FROM events
+    WHERE merged_into_id IS NULL      -- exclui eventos já mesclados/superados
+      AND embedding IS NOT NULL       -- exclui eventos sem embedding ainda
+    ORDER BY embedding <=> query_embedding ASC
+    LIMIT match_count;
+$$;
 
 -- View para o feed público (exclui mesclados/removidos)
 CREATE OR REPLACE VIEW public_feed AS
