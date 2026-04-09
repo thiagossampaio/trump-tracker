@@ -242,6 +242,7 @@ Implementa `agents/telegram_agent.py` (envia cards de revisão) e `cloudflare/te
 | Campo | Valor |
 |---|---|
 | **ID** | WP-04 |
+| **Status** | ✅ Concluído |
 | **Spec relacionada** | [SPEC-04](specs.md#spec-04--agente-de-publicação) |
 | **Estimativa** | 1d |
 | **Dependências** | WP-02, WP-03 |
