@@ -87,7 +87,7 @@ def fetch_review_pending(supabase: Client, limit: int) -> list[dict]:
             supabase.table("raw_articles")
             .select(
                 "id, headline_pt, summary_pt, score, score_breakdown, "
-                "source_name, source_url, category"
+                "source_name, url, category"
             )
             .eq("status", "classified")
             .eq("needs_human_review", True)
@@ -119,7 +119,7 @@ def build_card(article: dict) -> str:
     summary = article.get("summary_pt") or "(sem resumo)"
     category = article.get("category") or "?"
     source_name = article.get("source_name") or "?"
-    source_url = article.get("source_url") or ""
+    source_url = article.get("url") or ""
 
     bd = article.get("score_breakdown") or {}
     precedent = bd.get("precedent", "?")
