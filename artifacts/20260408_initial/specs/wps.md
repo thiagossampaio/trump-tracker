@@ -90,6 +90,7 @@ Corrige todas as inconsistências de fundação identificadas no briefing antes 
 | Campo | Valor |
 |---|---|
 | **ID** | WP-01 |
+| **Status** | ✅ Concluído |
 | **Spec relacionada** | [SPEC-01](specs.md#spec-01--agente-de-classificação-ia) |
 | **Estimativa** | 2d |
 | **Dependências** | WP-00 |
