@@ -329,6 +329,7 @@ Cria `.github/workflows/pipeline.yml` com cron de 2h, sequenciamento dos 5 agent
 | Campo | Valor |
 |---|---|
 | **ID** | WP-06 |
+| **Status** | ✅ Concluído |
 | **Spec relacionada** | [SPEC-06](specs.md#spec-06--frontend-público) |
 | **Estimativa** | 2d |
 | **Dependências** | Nenhuma |
