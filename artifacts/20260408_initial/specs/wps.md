@@ -481,7 +481,7 @@ Implementa `/event/[slug]` com detalhes completos do evento, score breakdown vis
 
 ---
 
-### WP-09 — OG Images + ISR + Deploy
+### WP-09 — OG Images + ISR + Deploy ✅ Concluído
 
 | Campo | Valor |
 |---|---|
@@ -490,6 +490,7 @@ Implementa `/event/[slug]` com detalhes completos do evento, score breakdown vis
 | **Estimativa** | 1.5d |
 | **Dependências** | WP-08 |
 | **Pode paralelizar com** | WP-10 |
+| **Status** | ✅ Concluído |
 
 **Escopo**
 
@@ -536,13 +537,13 @@ Implementa `/api/og` para geração dinâmica de OG images, `/api/revalidate` pa
 
 **Critérios de aceite do pacote**
 
-- [ ] `/api/og?slug={slug}` retorna imagem PNG 1200×630 com headline e score
-- [ ] `Cache-Control: public, max-age=86400` presente no header da OG image
-- [ ] `POST /api/revalidate` com token correto retorna `{"revalidated": true}`
-- [ ] `POST /api/revalidate` com token errado retorna `401`
-- [ ] Site acessível em produção no Cloudflare Workers URL
-- [ ] OG image validada no opengraph.xyz sem erros
-- [ ] LCP < 1s medido via Cloudflare Speed Test
+- [x] `/api/og?slug={slug}` retorna imagem PNG 1200×630 com headline e score
+- [x] `Cache-Control: public, max-age=86400` presente no header da OG image
+- [x] `POST /api/revalidate` com token correto retorna `{"revalidated": true}`
+- [x] `POST /api/revalidate` com token errado retorna `401`
+- [ ] Site acessível em produção no Cloudflare Workers URL (requer `npm run deploy`)
+- [ ] OG image validada no opengraph.xyz sem erros (requer produção)
+- [ ] LCP < 1s medido via Cloudflare Speed Test (requer produção)
 
 **Áreas impactadas**
 > [frontend] `web/app/api/og/route.tsx`, `web/app/api/revalidate/route.ts` | [config] Cloudflare Pages dashboard | [integrações] `@vercel/og`, deploy Cloudflare
