@@ -1,0 +1,60 @@
+{
+    "$schema": "https://mintlify.com/schema.json",
+    "name": "Trump Tracker",
+    "logo": {
+      "light": "/logo/light.svg",
+      "dark": "/logo/dark.svg"
+    },
+    "favicon": "/favicon.svg",
+    "colors": {
+      "primary": "#DC2626",
+      "light": "#EF4444",
+      "dark": "#991B1B"
+    },
+    "topbarLinks": [
+      { "name": "GitHub", "url": "https://github.com/seu-usuario/trump-tracker" }
+    ],
+    "topbarCtaButton": {
+      "name": "Ver Feed",
+      "url": "https://trumptracker.pages.dev"
+    },
+    "navigation": [
+      {
+        "group": "Início",
+        "pages": ["docs/briefing", "docs/setup", "docs/architecture"]
+      },
+      {
+        "group": "Pipeline",
+        "pages": [
+          "docs/pipeline/overview",
+          "docs/pipeline/ingest",
+          "docs/pipeline/classify",
+          "docs/pipeline/dedup",
+          "docs/pipeline/telegram",
+          "docs/pipeline/publish",
+          "docs/pipeline/backfill"
+        ]
+      },
+      {
+        "group": "Frontend",
+        "pages": [
+          "docs/frontend/overview",
+          "docs/frontend/feed",
+          "docs/frontend/event-page",
+          "docs/frontend/og-images"
+        ]
+      },
+      {
+        "group": "Infraestrutura",
+        "pages": [
+          "docs/infra/supabase",
+          "docs/infra/cloudflare",
+          "docs/infra/github-actions",
+          "docs/infra/telegram-webhook"
+        ]
+      }
+    ],
+    "footerSocials": {
+      "github": "https://github.com/seu-usuario/trump-tracker"
+    }
+  }

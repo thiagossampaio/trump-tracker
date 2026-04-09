@@ -1,0 +1,61 @@
+# config/sources.yml
+lookback_hours: 4
+
+queries:
+  primary:
+    - "Trump executive order"
+    - "Trump fires OR fired OR dismissed"
+    - "Trump unprecedented OR \"first time\" OR \"never before\""
+    - "Trump reversal OR reversed"
+    - "Trump tariff emergency"
+    - "Trump pardon"
+    - "Trump invokes OR invoked"
+    - "Trump suspends OR suspended"
+
+  secondary:
+    - "White House staff dismissed"
+    - "Trump administration policy reversal"
+    - "Federal judge blocks Trump"
+    - "Trump declares emergency"
+    - "Trump claims election"
+    - "Trump threatens allies"
+    - "Trump NATO"
+    - "Trump defy congress"
+    - "Trump overturns"
+
+rss_feeds:
+  - name: "AP News Politics"
+    url: "https://feeds.apnews.com/rss/apf-politics"
+    tier: 1
+  - name: "AP News Top"
+    url: "https://feeds.apnews.com/rss/apf-topnews"
+    tier: 1
+  - name: "Reuters Politics"
+    url: "https://feeds.reuters.com/Reuters/PoliticsNews"
+    tier: 1
+  - name: "Reuters Top"
+    url: "https://feeds.reuters.com/reuters/topNews"
+    tier: 1
+  - name: "BBC US"
+    url: "https://feeds.bbci.co.uk/news/world/us_and_canada/rss.xml"
+    tier: 2
+  - name: "NPR Politics"
+    url: "https://feeds.npr.org/1014/rss.xml"
+    tier: 2
+
+sources:
+  newsapi:
+    enabled: true
+    max_results: 100
+    tier: 2
+  gdelt:
+    enabled: true
+    max_results_per_query: 250
+    tier: 2
+  guardian:
+    enabled: true
+    max_results_per_query: 50
+    tier: 2
+  rss:
+    enabled: true
+    tier: 1
