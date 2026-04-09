@@ -184,7 +184,7 @@ async def fetch_newsapi(
 ) -> list[RawArticle]:
     if not api_key:
         return []
-    combined_query = " OR ".join(f'"{q}"' for q in queries[:5])
+    combined_query = " OR ".join(f"({q})" for q in queries[:5])
     params = {
         "q": combined_query,
         "from": since.strftime("%Y-%m-%dT%H:%M:%S"),
