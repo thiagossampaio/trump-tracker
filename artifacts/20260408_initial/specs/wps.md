@@ -379,6 +379,7 @@ Cria a estrutura base do `web/`: Next.js 15 App Router com TailwindCSS e shadcn/
 | Campo | Valor |
 |---|---|
 | **ID** | WP-07 |
+| **Status** | ✅ Concluído |
 | **Spec relacionada** | [SPEC-06](specs.md#spec-06--frontend-público) |
 | **Estimativa** | 2d |
 | **Dependências** | WP-06 |
