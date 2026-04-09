@@ -184,6 +184,7 @@ Implementa `agents/dedup_agent.py`: gera embeddings dos artigos classificados, c
 | Campo | Valor |
 |---|---|
 | **ID** | WP-03 |
+| **Status** | ✅ Concluído |
 | **Spec relacionada** | [SPEC-03](specs.md#spec-03--moderação-via-telegram) |
 | **Estimativa** | 1.5d |
 | **Dependências** | WP-01 |
