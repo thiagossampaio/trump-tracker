@@ -51,6 +51,8 @@ OPTIONAL_ENV = ["NEWSAPI_KEY", "GUARDIAN_API_KEY"]
 RELEVANCE_TERMS = [
     "trump", "white house", "executive order", "president trump",
     "mar-a-lago", "truth social", "trump administration",
+    # pt-BR (G1 e outras fontes lusófonas)
+    "casa branca", "governo trump", "ordem executiva", "presidente trump", "presidente dos estados unidos"
 ]
 
 HIGH_PRIORITY_TERMS = [

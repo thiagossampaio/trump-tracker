@@ -6,7 +6,7 @@ NÃO é um dashboard web — é 100% via Telegram inline keyboards.
 ## Fluxo
 1. classify_agent detecta score ≥ 8
 2. telegram_agent envia card formatado para TELEGRAM_CHAT_ID
-3. Moderador responde via [✅ Publicar] [✏️ Editar] [❌ Rejeitar]
+3. Moderador responde via [✅ Publicar] [❌ Rejeitar]
 4. Cloudflare Worker (webhook) recebe callback e atualiza status no banco
 5. No próximo run do cron, publish_agent processa os aprovados
 

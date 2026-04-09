@@ -1,4 +1,8 @@
-# config/sources.yml
+# config/sources.example.yml
+# Copie este arquivo para config/sources.yml e ajuste conforme necessário.
+# sources.yml NÃO é secret — pode ser versionado.
+# Apenas .env contém chaves de API.
+
 lookback_hours: 4
 
 queries:
@@ -41,6 +45,9 @@ rss_feeds:
     tier: 2
   - name: "NPR Politics"
     url: "https://feeds.npr.org/1014/rss.xml"
+    tier: 2
+  - name: "G1 Globo"
+    url: "https://g1.globo.com/rss/g1/mundo/"
     tier: 2
 
 sources:

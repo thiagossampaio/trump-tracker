@@ -235,7 +235,7 @@ def build_classification_prompt(articles: list[dict]) -> str:
 
 def classify_batch(client: anthropic.Anthropic, articles: list[dict]) -> list[dict] | None:
     try:
-        response = client.beta.prompt_caching.messages.create(
+        response = client.messages.create(
             model=MODEL,
             max_tokens=4096,
             system=[{
