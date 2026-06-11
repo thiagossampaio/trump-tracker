@@ -1,40 +1,48 @@
-"use client";
+import Link from "next/link";
+import { VALID_CATEGORIES, getCategoryEmoji } from "@/lib/events";
+import { cn } from "@/lib/utils";
 
-import { useRouter } from "next/navigation";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { VALID_CATEGORIES } from "@/lib/events";
-
-const ALL_TABS = ["Todos", ...VALID_CATEGORIES] as const;
-
+/**
+ * Filtro por categoria como links de navegação — funciona sem JavaScript
+ * (requisito da SPEC-06) e produz URLs compartilháveis por filtro.
+ */
 export default function CategoryFilter({
   currentCategory,
 }: {
   currentCategory: string | null;
 }) {
-  const router = useRouter();
-  const value = currentCategory ?? "Todos";
-
-  function handleChange(cat: string) {
-    if (cat === "Todos") {
-      router.push("/", { scroll: false });
-    } else {
-      router.push(`/?category=${encodeURIComponent(cat)}`, { scroll: false });
-    }
-  }
+  const tabs = [
+    { label: "Todos", emoji: null as string | null, href: "/", active: currentCategory === null },
+    ...VALID_CATEGORIES.map((cat) => ({
+      label: cat,
+      emoji: getCategoryEmoji(cat),
+      href: `/?category=${encodeURIComponent(cat)}`,
+      active: currentCategory === cat,
+    })),
+  ];
 
   return (
-    <Tabs value={value} onValueChange={handleChange} className="w-full">
-      <TabsList className="h-auto w-full justify-start overflow-x-auto rounded-xl border border-border bg-card p-1">
-        {ALL_TABS.map((cat) => (
-          <TabsTrigger
-            key={cat}
-            value={cat}
-            className="shrink-0 rounded-lg px-3 text-xs font-medium sm:text-sm"
-          >
-            {cat}
-          </TabsTrigger>
-        ))}
-      </TabsList>
-    </Tabs>
+    <nav
+      aria-label="Filtrar por categoria"
+      className="no-scrollbar sticky top-[57px] z-20 -mx-4 flex gap-2 overflow-x-auto border-b border-border bg-background/95 px-4 py-2.5 backdrop-blur-sm sm:-mx-6 sm:px-6"
+    >
+      {tabs.map((tab) => (
+        <Link
+          key={tab.label}
+          href={tab.href}
+          scroll={false}
+          aria-current={tab.active ? "page" : undefined}
+          className={cn(
+            "inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-xs font-semibold transition-colors",
+            tab.active
+              ? "border-primary bg-primary text-primary-foreground"
+              : "border-border bg-card text-muted-foreground hover:border-primary/40 hover:text-primary"
+          )}
+        >
+          {tab.emoji && <span aria-hidden>{tab.emoji}</span>}
+          {tab.label}
+        </Link>
+      ))}
+    </nav>
   );
 }

@@ -1,15 +1,11 @@
 import { ImageResponse } from "next/og";
 import { createClient } from "@supabase/supabase-js";
+import { getSeverity } from "@/lib/severity";
 
 export const runtime = "edge";
 
-function scoreColor(score: number): string {
-  if (score <= 3) return "#6b7280";
-  if (score <= 5) return "#ca8a04";
-  if (score <= 7) return "#ea580c";
-  if (score <= 9) return "#dc2626";
-  return "#7f1d1d";
-}
+const NAVY = "#0A3161";
+const RED = "#B31942";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -37,7 +33,8 @@ export async function GET(request: Request) {
     return new Response("Not found", { status: 404 });
   }
 
-  const color = scoreColor(event.score);
+  const severity = getSeverity(event.score);
+  const color = severity.hex;
 
   return new ImageResponse(
     (
@@ -48,44 +45,54 @@ export async function GET(request: Request) {
           display: "flex",
           flexDirection: "column",
           justifyContent: "space-between",
-          backgroundColor: "#09090b",
-          padding: "60px 64px",
+          backgroundColor: "#ffffff",
+          padding: "56px 64px",
           fontFamily: "sans-serif",
+          borderTop: `8px solid ${NAVY}`,
+          borderBottom: `8px solid ${RED}`,
         }}
       >
-        {/* Top: score badge + category */}
-        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+        {/* Topo: score + classificação da rubrica + categoria */}
+        <div style={{ display: "flex", alignItems: "center", gap: "18px" }}>
           <div
             style={{
               display: "flex",
               alignItems: "center",
-              gap: "6px",
-              backgroundColor: `${color}22`,
-              border: `1.5px solid ${color}55`,
-              borderRadius: "8px",
-              padding: "6px 14px",
+              gap: "8px",
+              backgroundColor: `${color}14`,
+              border: `2px solid ${color}55`,
+              borderRadius: "999px",
+              padding: "8px 20px",
               color: color,
-              fontSize: "20px",
+              fontSize: "24px",
               fontWeight: 700,
             }}
           >
-            ⚡ {event.score}/10
+            {event.score}/10 · {severity.label}
           </div>
-          <span style={{ color: "#71717a", fontSize: "18px" }}>
+          <span
+            style={{
+              color: NAVY,
+              fontSize: "20px",
+              fontWeight: 700,
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
+            }}
+          >
             {event.category}
           </span>
         </div>
 
-        {/* Center: headline */}
+        {/* Centro: headline */}
         <div
           style={{
             display: "flex",
-            color: "#fafafa",
-            fontSize: "52px",
+            color: "#10243e",
+            fontSize: "54px",
             fontWeight: 800,
-            lineHeight: 1.15,
+            lineHeight: 1.12,
             letterSpacing: "-0.02em",
-            maxWidth: "1000px",
+            maxWidth: "1020px",
             overflow: "hidden",
           }}
         >
@@ -94,29 +101,26 @@ export async function GET(request: Request) {
             : event.headline}
         </div>
 
-        {/* Bottom: branding */}
+        {/* Rodapé: branding */}
         <div
           style={{
             display: "flex",
-            justifyContent: "flex-end",
+            justifyContent: "space-between",
             alignItems: "center",
-            gap: "8px",
           }}
         >
           <span
             style={{
-              color: "#52525b",
-              fontSize: "18px",
-              fontWeight: 600,
-              letterSpacing: "0.05em",
-              textTransform: "uppercase",
+              color: RED,
+              fontSize: "22px",
+              fontWeight: 800,
+              letterSpacing: "-0.01em",
             }}
           >
             Trump Tracker
           </span>
-          <span style={{ color: "#27272a", fontSize: "18px" }}>·</span>
-          <span style={{ color: "#52525b", fontSize: "18px" }}>
-            Feed de Aberrações
+          <span style={{ color: "#5b6472", fontSize: "18px" }}>
+            Arquivo de aberrações · fontes verificáveis
           </span>
         </div>
       </div>

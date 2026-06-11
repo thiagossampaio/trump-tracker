@@ -1,5 +1,7 @@
+import Link from "next/link";
 import { unstable_cache } from "next/cache";
 import { getSupabase } from "@/lib/supabase";
+import HeaderCounter from "@/components/HeaderCounter";
 
 const getTotalCount = unstable_cache(
   async () => {
@@ -18,33 +20,35 @@ const getTotalCount = unstable_cache(
 
 export default async function Header() {
   const total = await getTotalCount();
-  const updatedAt = new Intl.DateTimeFormat("pt-BR", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  }).format(new Date());
+  const formattedTotal = new Intl.NumberFormat("pt-BR").format(total);
 
   return (
-    <header className="sticky top-0 z-20 border-b border-border/90 bg-background/95 backdrop-blur">
-      <div className="mx-auto flex w-full max-w-6xl items-end justify-between gap-3 px-4 py-4 sm:px-6">
-        <div className="flex min-w-0 flex-col gap-1">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+    <header className="sticky top-0 z-30 border-b border-border bg-card/95 backdrop-blur-md">
+      {/* Faixa institucional — Old Glory Blue / Old Glory Red */}
+      <div
+        className="h-[3px] w-full"
+        style={{
+          background:
+            "linear-gradient(90deg, var(--primary) 0%, var(--primary) 62%, var(--flag-red) 62%, var(--flag-red) 100%)",
+        }}
+        aria-hidden
+      />
+
+      <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
+        <Link href="/" className="group flex min-w-0 flex-col">
+          <span className="truncate text-lg font-extrabold leading-tight tracking-tight text-primary transition-opacity group-hover:opacity-80 sm:text-xl">
             Trump Tracker
-          </p>
-          <h1 className="text-base leading-tight font-semibold sm:text-lg">
-            Feed de Aberrações
-          </h1>
-          <p className="text-xs text-muted-foreground">
-            Arquivo factual em ordem cronológica reversa
-          </p>
-        </div>
-        <div className="rounded-lg border border-border bg-card px-3 py-2 text-right shadow-xs">
-          <p className="text-2xl leading-none font-semibold tabular-nums text-primary">
-            {total}
-          </p>
-          <p className="text-[11px] text-muted-foreground">eventos indexados</p>
-          <p className="text-[11px] text-muted-foreground">atualizado em {updatedAt}</p>
-        </div>
+          </span>
+          <span className="hidden items-center gap-1.5 text-[11px] font-medium text-muted-foreground sm:flex">
+            <span
+              className="signal-pulse size-1.5 rounded-full bg-flag-red"
+              aria-hidden
+            />
+            Monitoramento independente · fontes verificáveis
+          </span>
+        </Link>
+
+        <HeaderCounter formattedTotal={formattedTotal} />
       </div>
     </header>
   );

@@ -1,8 +1,10 @@
 import { unstable_cache } from "next/cache";
 import { getSupabase } from "@/lib/supabase";
 import { VALID_CATEGORIES, type Event } from "@/lib/events";
+import { SEVERITY_LEGEND } from "@/lib/severity";
 import CategoryFilter from "@/components/CategoryFilter";
 import InfiniteScroll from "@/components/InfiniteScroll";
+import { cn } from "@/lib/utils";
 
 function makeInitialFetcher(category: string | null) {
   return unstable_cache(
@@ -37,6 +39,52 @@ function makeInitialFetcher(category: string | null) {
   );
 }
 
+/** Estatísticas do hero: total, eventos críticos e início da janela de análise */
+const getFeedStats = unstable_cache(
+  async () => {
+    try {
+      const supabase = getSupabase();
+      const [totalRes, criticalRes, firstRes] = await Promise.all([
+        supabase.from("public_feed").select("*", { count: "exact", head: true }),
+        supabase
+          .from("public_feed")
+          .select("*", { count: "exact", head: true })
+          .gte("score", 8),
+        supabase
+          .from("public_feed")
+          .select("occurred_at")
+          .order("occurred_at", { ascending: true })
+          .limit(1),
+      ]);
+      const since = firstRes.data?.[0]?.occurred_at ?? null;
+      const daysTracking = since
+        ? Math.max(
+            1,
+            Math.floor((Date.now() - new Date(since).getTime()) / 86_400_000)
+          )
+        : null;
+      return {
+        total: totalRes.count ?? 0,
+        critical: criticalRes.count ?? 0,
+        since,
+        daysTracking,
+      };
+    } catch {
+      return { total: 0, critical: 0, since: null, daysTracking: null };
+    }
+  },
+  ["feed-stats"],
+  { tags: ["events-feed"], revalidate: 120 }
+);
+
+function formatLongDate(iso: string): string {
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(new Date(iso));
+}
+
 export default async function HomePage({
   searchParams,
 }: {
@@ -48,21 +96,81 @@ export default async function HomePage({
       ? rawCat
       : null;
 
-  const { events, nextCursor } = await makeInitialFetcher(category)();
+  const [{ events, nextCursor }, stats] = await Promise.all([
+    makeInitialFetcher(category)(),
+    getFeedStats(),
+  ]);
+
+  const formattedTotal = new Intl.NumberFormat("pt-BR").format(stats.total);
+  const daysTracking = stats.daysTracking;
 
   return (
-    <main className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-4 py-6 sm:px-6 sm:py-8">
-      <section className="rounded-xl border border-border bg-card px-4 py-4 shadow-xs sm:px-5">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-          Data Journalism Feed
+    <main className="mx-auto flex w-full max-w-4xl flex-col gap-7 px-4 py-8 sm:px-6 sm:py-12">
+      {/* Hero — o número é a evidência */}
+      <section className="flex flex-col gap-5">
+        <p className="text-xs font-bold uppercase tracking-[0.2em] text-primary">
+          Monitoramento independente da presidência americana
         </p>
-        <h2 className="mt-2 text-xl leading-tight font-semibold sm:text-2xl">
-          Eventos sem precedentes da política americana, com classificação factual.
-        </h2>
-        <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-          Cada item reúne fonte verificável, categoria editorial e Aberration
-          Score para leitura rápida no mobile e contexto aprofundado no detalhe.
+
+        <div className="flex flex-wrap items-baseline gap-x-5 gap-y-2">
+          <span className="text-7xl font-extrabold leading-none tracking-tighter tabular-nums text-flag-red sm:text-8xl">
+            {formattedTotal}
+          </span>
+          <div className="flex flex-col gap-1">
+            <p className="text-xl font-bold leading-tight sm:text-2xl">
+              aberrações documentadas
+            </p>
+            {stats.since && (
+              <p className="text-sm text-muted-foreground">
+                desde {formatLongDate(stats.since)}
+                {daysTracking && (
+                  <>
+                    {" "}
+                    · <strong className="font-semibold text-foreground">
+                      {daysTracking} dias
+                    </strong>{" "}
+                    de análise contínua
+                  </>
+                )}
+              </p>
+            )}
+          </div>
+        </div>
+
+        <p className="max-w-2xl font-serif text-base leading-relaxed text-foreground/85 sm:text-lg">
+          Eventos sem precedente histórico da presidência dos EUA, documentados
+          com fonte verificável e classificados pelo{" "}
+          <strong className="font-semibold">Aberration Score</strong> — uma
+          medida de 1 a 10 do desvio em relação à norma histórica do cargo.
+          {stats.critical > 0 && (
+            <>
+              {" "}
+              <strong className="font-semibold text-sev-alto">
+                {new Intl.NumberFormat("pt-BR").format(stats.critical)}
+              </strong>{" "}
+              deles não têm precedente nos últimos 50 anos.
+            </>
+          )}
         </p>
+
+        {/* Legenda da escala — educa o leitor no primeiro contato */}
+        <div className="flex flex-wrap gap-x-5 gap-y-2 rounded-lg border border-border bg-card px-4 py-3">
+          {SEVERITY_LEGEND.map(({ range, severity }) => (
+            <span
+              key={severity.key}
+              className="inline-flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground"
+            >
+              <span
+                className={cn("size-2 rounded-full bg-current", severity.text)}
+                aria-hidden
+              />
+              <span className={cn("font-bold tabular-nums", severity.text)}>
+                {range}
+              </span>
+              {severity.label}
+            </span>
+          ))}
+        </div>
       </section>
 
       <CategoryFilter currentCategory={category} />

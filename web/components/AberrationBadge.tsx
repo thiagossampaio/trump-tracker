@@ -1,30 +1,34 @@
-import { Zap } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { getSeverity } from "@/lib/severity";
 import { cn } from "@/lib/utils";
 
-function scoreClassName(score: number): string {
-  if (score <= 3)
-    return "border-transparent bg-secondary text-secondary-foreground";
-  if (score <= 5)
-    return "border-transparent bg-amber-100 text-amber-900";
-  if (score <= 7)
-    return "border-transparent bg-orange-100 text-orange-900";
-  if (score <= 9)
-    return "border-transparent bg-destructive/15 text-destructive";
-  return "border-transparent bg-red-200 text-red-950";
-}
+type Props = {
+  score: number;
+  /** Exibe a classificação oficial da rubrica ao lado do número */
+  showLabel?: boolean;
+  className?: string;
+};
 
-export default function AberrationBadge({ score }: { score: number }) {
+export default function AberrationBadge({
+  score,
+  showLabel = false,
+  className,
+}: Props) {
+  const severity = getSeverity(score);
+
   return (
-    <Badge
-      variant="outline"
+    <span
       className={cn(
-        "gap-1 font-semibold tabular-nums tracking-tight",
-        scoreClassName(score)
+        "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm font-bold tabular-nums",
+        severity.text,
+        severity.bg,
+        severity.border,
+        className
       )}
     >
-      <Zap className="size-3!" />
       {score}/10
-    </Badge>
+      {showLabel && (
+        <span className="font-semibold">· {severity.label}</span>
+      )}
+    </span>
   );
 }

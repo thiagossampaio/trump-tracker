@@ -48,6 +48,21 @@ export const CATEGORY_LABELS: Record<string, string> = {
   Comunicação: "Comunicação",
 };
 
+// Emojis canônicos por categoria (briefing v0, §6.2 — _shared.md)
+export const CATEGORY_EMOJI: Record<string, string> = {
+  Institucional: "🏛️",
+  Econômico: "📈",
+  Diplomático: "🌐",
+  Jurídico: "⚖️",
+  Militar: "🎖️",
+  Social: "👥",
+  Comunicação: "📢",
+};
+
 export function getCategoryLabel(category: string): string {
   return CATEGORY_LABELS[category] ?? category;
+}
+
+export function getCategoryEmoji(category: string): string {
+  return CATEGORY_EMOJI[category] ?? "📌";
 }
