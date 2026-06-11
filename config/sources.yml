@@ -28,18 +28,6 @@ queries:
     - "Trump overturns"
 
 rss_feeds:
-  - name: "AP News Politics"
-    url: "https://feeds.apnews.com/rss/apf-politics"
-    tier: 1
-  - name: "AP News Top"
-    url: "https://feeds.apnews.com/rss/apf-topnews"
-    tier: 1
-  - name: "Reuters Politics"
-    url: "https://feeds.reuters.com/Reuters/PoliticsNews"
-    tier: 1
-  - name: "Reuters Top"
-    url: "https://feeds.reuters.com/reuters/topNews"
-    tier: 1
   - name: "BBC US"
     url: "https://feeds.bbci.co.uk/news/world/us_and_canada/rss.xml"
     tier: 2
