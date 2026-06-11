@@ -125,6 +125,17 @@ ALTER TABLE raw_articles
   ADD COLUMN IF NOT EXISTS needs_human_review BOOLEAN DEFAULT FALSE,
   ADD COLUMN IF NOT EXISTS merged_into_id     UUID REFERENCES events(id);
 
+-- ──────────────────────────────────────────
+-- Migration 002: dedup intra-lote (ver migration_002_dedup_fix.sql)
+-- ──────────────────────────────────────────
+ALTER TABLE raw_articles
+  ADD COLUMN IF NOT EXISTS embedding               vector(1536),
+  ADD COLUMN IF NOT EXISTS duplicate_of_article_id UUID REFERENCES raw_articles(id);
+
+CREATE INDEX IF NOT EXISTS idx_raw_articles_duplicate_of
+    ON raw_articles (duplicate_of_article_id)
+    WHERE duplicate_of_article_id IS NOT NULL;
+
 ALTER TABLE raw_articles
   DROP CONSTRAINT IF EXISTS raw_articles_status_check;
 

@@ -8,10 +8,13 @@ disparando revalidação do cache Next.js.
 Fluxo:
   1. Busca artigos com status IN ('approved', 'approved_manual')
   2. Para cada artigo:
-     a. Gera embedding via text-embedding-3-small
+     a. Reutiliza raw_articles.embedding (gerado pelo dedup) ou gera
+        via embedding_utils (mesmo texto canônico, com retry)
      b. Gera slug único (kebab + data, anti-colisão numérica)
      c. Insere na tabela events (ON CONFLICT slug → pula)
-     d. Atualiza raw_articles.status = 'published'
+     d. Absorve duplicatas intra-lote (duplicate_of_article_id):
+        agrega fontes em secondary_sources e fecha merged_into_id
+     e. Atualiza raw_articles.status = 'published'
   3. Dispara POST /api/revalidate para atualizar o cache do feed
   4. Imprime relatório
 
@@ -36,6 +39,13 @@ from openai import OpenAI
 from supabase import create_client, Client
 from unidecode import unidecode
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from embedding_utils import (  # noqa: E402
+    build_embedding_text,
+    generate_embedding,
+    parse_vector,
+)
+
 load_dotenv()
 
 logging.basicConfig(
@@ -48,7 +58,6 @@ log = logging.getLogger("publish")
 # ── Constantes ────────────────────────────────────────────────────────────────
 
 DEFAULT_LIMIT = 50
-EMBEDDING_MODEL = "text-embedding-3-small"
 
 REQUIRED_ENV = [
     "SUPABASE_URL",
@@ -105,7 +114,7 @@ def fetch_approved(supabase: Client, limit: int) -> list[dict]:
             .select(
                 "id, url, headline_pt, summary_pt, historical_context, "
                 "score, score_breakdown, category, confidence, "
-                "source_name, source_tier, published_at, status"
+                "source_name, source_tier, published_at, status, embedding"
             )
             .in_("status", ["approved", "approved_manual"])
             .order("published_at", desc=False)
@@ -129,22 +138,31 @@ def mark_published(supabase: Client, article_id: str) -> None:
 
 # ── Embedding ─────────────────────────────────────────────────────────────────
 
-def generate_embedding(openai_client: OpenAI, article: dict) -> list[float] | None:
-    """Gera embedding de 1536 dimensões via text-embedding-3-small."""
-    text = " ".join(filter(None, [
-        article.get("headline_pt"),
-        article.get("summary_pt"),
-        article.get("category"),
-    ]))
+def get_embedding(openai_client: OpenAI, article: dict) -> list[float] | None:
+    """
+    Retorna o embedding do artigo: reutiliza raw_articles.embedding quando
+    o dedup já o gerou (caminho normal — evita regeneração com texto
+    inconsistente e custo 2x de API); senão gera via embedding_utils
+    (mesmo texto canônico, com retry).
+    """
+    stored = parse_vector(article.get("embedding"))
+    if stored:
+        return stored
+    return generate_embedding(openai_client, build_embedding_text(article))
+
+
+def send_to_review(supabase: Client, article_id: str, reason: str) -> None:
+    """
+    Tira da fila um artigo impublicável (ex.: sem headline/summary para
+    gerar embedding) — antes ele ficava preso em 'approved' para sempre.
+    """
     try:
-        response = openai_client.embeddings.create(
-            model=EMBEDDING_MODEL,
-            input=text,
-        )
-        return response.data[0].embedding
+        supabase.table("raw_articles").update(
+            {"status": "pending_review", "needs_human_review": True}
+        ).eq("id", article_id).execute()
+        log.warning(f"Artigo {article_id} → pending_review ({reason})")
     except Exception as e:
-        log.warning(f"OpenAI: erro ao gerar embedding — {e}")
-        return None
+        log.error(f"Erro ao mover {article_id} para pending_review: {e}")
 
 
 # ── Slug ──────────────────────────────────────────────────────────────────────
@@ -206,21 +224,87 @@ def build_event_row(article: dict, embedding: list[float], slug: str) -> dict:
     }
 
 
-def insert_event(supabase: Client, row: dict) -> str:
+def insert_event(supabase: Client, row: dict) -> tuple[str, str | None]:
     """
     Insere evento na tabela events.
-    Retorna 'inserted' em sucesso ou 'conflict' se slug já existir.
+    Retorna ('inserted', event_id) em sucesso ou ('conflict', None)
+    se slug já existir.
     """
     try:
-        supabase.table("events").insert(row).execute()
-        return "inserted"
+        result = supabase.table("events").insert(row).execute()
+        event_id = result.data[0]["id"] if result.data else None
+        return "inserted", event_id
     except Exception as e:
         msg = str(e).lower()
         if "duplicate" in msg or "unique" in msg or "23505" in msg:
             log.info(f"Slug já existe: {row['slug']} — evento ignorado")
-            return "conflict"
+            return "conflict", None
         log.error(f"Erro ao inserir evento {row['slug']}: {e}")
         raise
+
+
+def absorb_batch_duplicates(
+    supabase: Client,
+    canonical_article_id: str,
+    event_id: str,
+) -> int:
+    """
+    Fecha a linhagem das duplicatas intra-lote marcadas pelo dedup_agent
+    (duplicate_of_article_id → artigo canônico). Quando o canônico vira
+    evento: agrega as fontes das duplicatas em secondary_sources do evento
+    e seta merged_into_id delas para o evento criado.
+
+    Retorna o número de duplicatas absorvidas.
+    """
+    try:
+        dups = (
+            supabase.table("raw_articles")
+            .select("id, url, source_name, source_tier")
+            .eq("duplicate_of_article_id", canonical_article_id)
+            .execute()
+        ).data or []
+    except Exception as e:
+        log.warning(f"Erro ao buscar duplicatas de lote de {canonical_article_id}: {e}")
+        return 0
+
+    if not dups:
+        return 0
+
+    try:
+        current = (
+            supabase.table("events")
+            .select("secondary_sources, source_url")
+            .eq("id", event_id)
+            .single()
+            .execute()
+        ).data
+        secondary = current.get("secondary_sources") or []
+        seen_urls = {s.get("url") for s in secondary} | {current.get("source_url")}
+
+        for d in dups:
+            if d["url"] not in seen_urls:
+                secondary.append({
+                    "url": d["url"],
+                    "name": d.get("source_name", ""),
+                    "tier": d.get("source_tier", 2),
+                })
+                seen_urls.add(d["url"])
+
+        supabase.table("events").update(
+            {"secondary_sources": secondary}
+        ).eq("id", event_id).execute()
+
+        supabase.table("raw_articles").update(
+            {"merged_into_id": event_id}
+        ).eq("duplicate_of_article_id", canonical_article_id).execute()
+
+        log.info(
+            f"  {len(dups)} duplicata(s) de lote absorvida(s) no evento {event_id}"
+        )
+        return len(dups)
+    except Exception as e:
+        log.warning(f"Erro ao absorver duplicatas de lote no evento {event_id}: {e}")
+        return 0
 
 
 # ── Revalidação de cache Next.js ──────────────────────────────────────────────
@@ -269,9 +353,20 @@ async def run(dry_run: bool = False, limit: int | None = None) -> PublishReport:
         for article in articles:
             aid = article["id"]
 
-            embedding = generate_embedding(openai_client, article)
+            embedding = get_embedding(openai_client, article)
             if embedding is None:
-                report.errors.append(f"Embedding falhou para {aid}")
+                if not build_embedding_text(article):
+                    # Falha permanente (sem headline/summary) — sai da fila
+                    # em vez de ficar preso em 'approved' para sempre
+                    if not dry_run:
+                        send_to_review(supabase, aid, "sem texto para embedding")
+                    report.errors.append(
+                        f"Sem texto para embedding em {aid} → pending_review"
+                    )
+                else:
+                    # Falha transitória da API — permanece 'approved',
+                    # retry natural no próximo ciclo
+                    report.errors.append(f"Embedding falhou para {aid}")
                 continue
 
             occurred_at = parse_dt(article.get("published_at"))
@@ -293,7 +388,7 @@ async def run(dry_run: bool = False, limit: int | None = None) -> PublishReport:
                 continue
 
             try:
-                outcome = insert_event(supabase, row)
+                outcome, event_id = insert_event(supabase, row)
             except Exception as e:
                 report.errors.append(f"Erro ao inserir {aid}: {e}")
                 continue
@@ -301,6 +396,9 @@ async def run(dry_run: bool = False, limit: int | None = None) -> PublishReport:
             if outcome == "inserted":
                 report.published += 1
                 log.info(f"Evento publicado: {slug} (score={article.get('score')})")
+                # Fecha a linhagem das duplicatas intra-lote deste canônico
+                if event_id:
+                    absorb_batch_duplicates(supabase, aid, event_id)
             else:
                 report.conflicts_ignored += 1
 

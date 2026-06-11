@@ -5,16 +5,22 @@ Lê artigos raw_articles com status='classified' e needs_human_review=false,
 gera embeddings via OpenAI text-embedding-3-small, consulta eventos similares
 via pgvector, e roteia cada artigo pela tabela de decisão por similaridade cosine.
 
-Fluxo:
-  1. Busca artigos classified + needs_human_review=false
-  2. Gera embedding do texto "{headline_pt} {summary_pt} {category}"
-  3. Consulta events via RPC match_events (pgvector cosine distance)
-  4. Aplica tabela de decisão:
-     ≥ 0.92  → rejected (duplicata)
-     0.80–0.91 → lógica update-vs-merge
-     0.65–0.79 → approved + enrich secondary_sources do evento mais similar
-     < 0.65  → approved (independente)
-  5. Atualiza raw_articles; nunca deleta registros
+Fluxo (por artigo, em lote ordenado por source_tier ASC, published_at ASC):
+  1a. Headline normalizada idêntica a artigo já aprovado no lote
+      → rejected + duplicate_of_article_id (linhagem fechada pelo publish)
+  1b. Headline normalizada idêntica a evento ativo recente (14d)
+      → rejected + merged_into_id + enrich secondary_sources
+  2.  Gera embedding (compartilhado via embedding_utils) e persiste em
+      raw_articles.embedding — o publish reutiliza em vez de regenerar
+  3.  Consulta events via RPC match_events (pgvector cosine distance):
+      ≥ 0.92  → rejected (duplicata)
+      0.80–0.91 → lógica update-vs-merge
+      0.65–0.79 → approved + enrich secondary_sources do evento mais similar
+      < 0.65  → approved (independente)
+  4.  Compara contra artigos aprovados no MESMO lote (correção da cegueira
+      intra-lote / syndication): ≥ 0.90 incondicional, ou ≥ 0.80 com mesma
+      categoria → rejected + duplicate_of_article_id
+  5.  Aprovado → entra no registro do lote; nunca deleta registros
 
 Uso:
   python agents/dedup_agent.py
@@ -29,11 +35,20 @@ import logging
 import os
 import sys
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
+import numpy as np
 from dotenv import load_dotenv
 from openai import OpenAI
 from supabase import create_client, Client
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from embedding_utils import (  # noqa: E402
+    build_embedding_text,
+    cosine_sim,
+    generate_embedding,
+    normalize_headline,
+)
 
 load_dotenv()
 
@@ -62,6 +77,14 @@ THRESH_RELATED_LO = 0.65   # faixa 0.65–0.79 → relacionado
 
 UPDATE_HOURS_MIN = 2        # artigo deve ser > 2h mais novo que o evento para ser update
 
+# Dedup intra-lote (artigos do MESMO ciclo, antes de virarem events):
+# 0.80–0.89 exige mesma categoria; >= 0.90 rejeita incondicionalmente.
+# Sem lógica de "evolução" aqui — cobertura do mesmo ciclo de 2h é
+# simultânea, não evolução (a regra de update já exige > 2h de diferença).
+BATCH_DUP_UNCONDITIONAL = 0.90
+
+RECENT_HEADLINE_DAYS = 14   # janela do pré-filtro lexical contra events
+
 
 # ── Dataclass de relatório ────────────────────────────────────────────────────
 
@@ -74,11 +97,13 @@ class DedupReport:
     merged: int = 0         # 0.80–0.91 + sem evolução → rejected
     duplicate: int = 0      # >= 0.92 → rejected
     no_events: int = 0      # tabela events vazia → approved
+    headline_match: int = 0   # headline idêntica a evento recente → rejected
+    batch_duplicate: int = 0  # duplicata intra-lote → rejected
     errors: list[str] = field(default_factory=list)
 
     def print(self):
         total_approved = self.independent + self.related + self.updated + self.no_events
-        total_rejected = self.duplicate + self.merged
+        total_rejected = self.duplicate + self.merged + self.headline_match + self.batch_duplicate
         print("\n" + "─" * 55)
         print("Deduplicação concluída")
         print("─" * 55)
@@ -88,6 +113,8 @@ class DedupReport:
         print(f"   Updates (0.80–0.91):         {self.updated:>4}  → approved")
         print(f"   Mesclados (0.80–0.91):       {self.merged:>4}  → rejected")
         print(f"   Duplicatas (≥ 0.92):         {self.duplicate:>4}  → rejected")
+        print(f"   Headline = evento recente:   {self.headline_match:>4}  → rejected")
+        print(f"   Duplicatas intra-lote:       {self.batch_duplicate:>4}  → rejected")
         print(f"   Sem eventos (tabela vazia):  {self.no_events:>4}  → approved")
         print(f"\n   Total aprovados:             {total_approved:>4}")
         print(f"   Total rejeitados:            {total_rejected:>4}")
@@ -112,7 +139,9 @@ def fetch_classified_articles(supabase: Client, limit: int | None) -> list[dict]
     """
     Busca artigos com status='classified' e needs_human_review=false.
     Inclui 'title' (inglês) necessário para checar EVOLUTION_TERMS.
-    Ordena por published_at ASC para processar mais antigos primeiro.
+    Ordena por source_tier ASC, published_at ASC: o primeiro artigo
+    aprovado de um grupo de syndication vira o canônico do lote
+    (melhor fonte, mais antigo).
     """
     try:
         query = (
@@ -120,6 +149,7 @@ def fetch_classified_articles(supabase: Client, limit: int | None) -> list[dict]
             .select("id, url, title, source_name, source_tier, headline_pt, summary_pt, category, published_at")
             .eq("status", "classified")
             .eq("needs_human_review", False)
+            .order("source_tier", desc=False)
             .order("published_at", desc=False)
         )
         if limit is not None:
@@ -131,34 +161,47 @@ def fetch_classified_articles(supabase: Client, limit: int | None) -> list[dict]
         return []
 
 
-# ── Geração de embeddings ─────────────────────────────────────────────────────
-
-def generate_embedding(openai_client: OpenAI, text: str) -> list[float] | None:
-    """Gera embedding de 1536 dimensões via text-embedding-3-small."""
+def fetch_recent_event_headlines(supabase: Client, days: int = RECENT_HEADLINE_DAYS) -> dict[str, str]:
+    """
+    Mapa {headline normalizada → event_id} dos eventos ativos dos últimos
+    `days` dias. Pré-filtro lexical barato contra syndication: headline
+    idêntica a evento recente → merge direto, sem custo de embedding.
+    """
     try:
-        response = openai_client.embeddings.create(
-            model="text-embedding-3-small",
-            input=text,
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+        result = (
+            supabase.table("events")
+            .select("id, headline")
+            .is_("merged_into_id", "null")
+            .gte("occurred_at", cutoff)
+            .execute()
         )
-        return response.data[0].embedding
+        mapping: dict[str, str] = {}
+        for row in result.data or []:
+            hnorm = normalize_headline(row.get("headline"))
+            if hnorm:
+                mapping.setdefault(hnorm, row["id"])
+        return mapping
     except Exception as e:
-        log.warning(f"OpenAI: erro ao gerar embedding — {e}")
-        return None
+        log.warning(f"Erro ao buscar headlines de eventos recentes: {e}")
+        return {}
 
 
 # ── Consulta pgvector via RPC ─────────────────────────────────────────────────
+# (geração de embedding agora vive em embedding_utils — compartilhada com publish)
 
 def find_similar_events(supabase: Client, embedding: list[float]) -> list[dict]:
     """
     Chama a função SQL match_events via RPC do Supabase.
-    Retorna até 5 eventos ordenados por distância cosine ascendente.
+    Retorna até 10 eventos ordenados por distância cosine ascendente
+    (margem de diagnóstico para grupos grandes de syndication).
     Cada item tem: id, slug, occurred_at, distance, similarity.
     Retorna [] se a tabela events estiver vazia ou em caso de erro.
     """
     try:
         result = supabase.rpc(
             "match_events",
-            {"query_embedding": embedding, "match_count": 5},
+            {"query_embedding": embedding, "match_count": 10},
         ).execute()
         return result.data or []
     except Exception as e:
@@ -287,22 +330,38 @@ def apply_decision(
     supabase: Client,
     article_id: str,
     action: str,
-    event_id: str | None,
+    ref_id: str | None,
     dry_run: bool,
+    embedding: list[float] | None = None,
 ) -> None:
     """
     Atualiza raw_articles conforme a decisão de dedup.
     Nunca deleta registros.
+
+    ref_id: para rejected_merged é um event_id; para rejected_batch_duplicate
+    é o id do artigo canônico do MESMO lote (raw_articles) — o publish_agent
+    fecha a linhagem (merged_into_id) quando o canônico vira evento.
+
+    embedding: quando fornecido, é persistido em raw_articles.embedding no
+    mesmo UPDATE — o publish_agent reutiliza em vez de regenerar.
     """
     if action.startswith("approved"):
         payload: dict = {"status": "approved"}
     elif action == "rejected_merged":
-        payload = {"status": "rejected", "merged_into_id": event_id}
+        payload = {"status": "rejected", "merged_into_id": ref_id}
+    elif action == "rejected_batch_duplicate":
+        payload = {"status": "rejected", "duplicate_of_article_id": ref_id}
     else:  # rejected_duplicate
         payload = {"status": "rejected"}
 
+    if embedding is not None:
+        payload["embedding"] = embedding
+
     if dry_run:
-        log.info(f"  [DRY RUN] article {article_id}: {action} → {payload}")
+        shown = {k: v for k, v in payload.items() if k != "embedding"}
+        if embedding is not None:
+            shown["embedding"] = f"<{len(embedding)} dims>"
+        log.info(f"  [DRY RUN] article {article_id}: {action} → {shown}")
         return
 
     try:
@@ -333,37 +392,101 @@ async def run(dry_run: bool = False, limit: int | None = None, dedup_threshold: 
 
     log.info(f"Encontrados {len(articles)} artigos classified — iniciando dedup")
 
+    # Pré-filtro lexical: headlines de eventos ativos recentes
+    recent_headlines = fetch_recent_event_headlines(supabase)
+    log.info(f"Headlines de eventos recentes ({RECENT_HEADLINE_DAYS}d): {len(recent_headlines)}")
+
+    # Registro em memória dos artigos aprovados NESTE lote — corrige a
+    # cegueira intra-lote (N cópias de syndication no mesmo ciclo, nenhuma
+    # ainda em events, todas passavam como independentes).
+    batch_approved: list[dict] = []
+
     for article in articles:
         aid = article["id"]
         label = (article.get("headline_pt") or article.get("title") or "")[:60]
         log.info(f"Processando {aid} — {label}")
 
-        # Texto para embedding: headline_pt + summary_pt + category
-        text = " ".join(filter(None, [
-            article.get("headline_pt", ""),
-            article.get("summary_pt", ""),
-            article.get("category", ""),
-        ])).strip()
+        hnorm = normalize_headline(article.get("headline_pt"))
 
+        # ── Fase 1a: headline idêntica a artigo já aprovado no lote ──────
+        if hnorm:
+            canon = next(
+                (b for b in batch_approved if b["headline_norm"] == hnorm), None
+            )
+            if canon:
+                log.info(
+                    f"  → rejected_batch_duplicate (headline idêntica no lote)"
+                    f" | canônico {canon['id']}"
+                )
+                try:
+                    apply_decision(
+                        supabase, aid, "rejected_batch_duplicate", canon["id"], dry_run
+                    )
+                except Exception as e:
+                    report.errors.append(f"apply_decision falhou para {aid}: {e}")
+                    continue
+                report.batch_duplicate += 1
+                continue
+
+        # ── Fase 1b: headline idêntica a evento recente ───────────────────
+        if hnorm and hnorm in recent_headlines:
+            event_id = recent_headlines[hnorm]
+            log.info(
+                f"  → rejected_merged (headline idêntica a evento recente)"
+                f" | evento {event_id}"
+            )
+            enrich_secondary_sources(supabase, event_id, article, dry_run)
+            try:
+                apply_decision(supabase, aid, "rejected_merged", event_id, dry_run)
+            except Exception as e:
+                report.errors.append(f"apply_decision falhou para {aid}: {e}")
+                continue
+            report.headline_match += 1
+            continue
+
+        # ── Fase 2: embedding (gerado uma vez, persistido p/ o publish) ──
+        text = build_embedding_text(article)
         embedding = generate_embedding(openai_client, text)
         if embedding is None:
+            # Permanece 'classified' — retry natural no próximo ciclo
             report.errors.append(f"Embedding falhou para {aid} — artigo pulado")
             continue
 
+        # ── Fase 3: decisão contra events (pgvector) — vence o lote ──────
         similar_events = find_similar_events(supabase, embedding)
-        action, event_id = decide_action(article, similar_events, dedup_threshold)
+        action, ref_id = decide_action(article, similar_events, dedup_threshold)
 
         sim_info = ""
         if similar_events:
             sim_info = f" (sim={similar_events[0]['similarity']:.3f})"
-        log.info(f"  → {action}{sim_info}" + (f" | evento {event_id}" if event_id else ""))
 
-        # Enriquecer secondary_sources para artigos relacionados
-        if action == "approved_related" and event_id:
-            enrich_secondary_sources(supabase, event_id, article, dry_run)
+        # ── Fase 4: decisão contra o lote (correção da falha raiz) ───────
+        # Só se nenhum evento real rejeitou o artigo.
+        if action.startswith("approved") and batch_approved:
+            best_sim, best_batch = -1.0, None
+            for b in batch_approved:
+                s = cosine_sim(embedding, b["embedding"])
+                if s > best_sim:
+                    best_sim, best_batch = s, b
+            same_cat = (
+                best_batch is not None
+                and best_batch["category"] == article.get("category")
+            )
+            if best_batch and (
+                best_sim >= BATCH_DUP_UNCONDITIONAL
+                or (best_sim >= THRESH_EPISODE_LO and same_cat)
+            ):
+                action, ref_id = "rejected_batch_duplicate", best_batch["id"]
+                sim_info = f" (sim-lote={best_sim:.3f})"
+
+        log.info(f"  → {action}{sim_info}" + (f" | ref {ref_id}" if ref_id else ""))
+
+        # Enriquecer secondary_sources para artigos relacionados a evento real
+        if action == "approved_related" and ref_id:
+            enrich_secondary_sources(supabase, ref_id, article, dry_run)
 
         try:
-            apply_decision(supabase, aid, action, event_id, dry_run)
+            apply_decision(supabase, aid, action, ref_id, dry_run, embedding=embedding)
         except Exception as e:
             report.errors.append(f"apply_decision falhou para {aid}: {e}")
             continue
@@ -382,6 +505,18 @@ async def run(dry_run: bool = False, limit: int | None = None, dedup_threshold: 
             report.merged += 1
         elif action == "rejected_duplicate":
             report.duplicate += 1
+        elif action == "rejected_batch_duplicate":
+            report.batch_duplicate += 1
+            continue
+
+        # ── Fase 5: aprovado — entra no registro do lote ──────────────────
+        if action.startswith("approved"):
+            batch_approved.append({
+                "id": aid,
+                "embedding": np.asarray(embedding, dtype=np.float32),
+                "headline_norm": hnorm,
+                "category": article.get("category"),
+            })
 
     report.print()
     return report
