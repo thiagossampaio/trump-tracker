@@ -1,7 +1,14 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Libre_Franklin, Source_Serif_4 } from "next/font/google";
 import "./globals.css";
 import Header from "@/components/Header";
+import JsonLd from "@/components/JsonLd";
+import {
+  SITE_DESCRIPTION,
+  SITE_NAME,
+  SITE_TITLE,
+  SITE_URL,
+} from "@/lib/site";
 
 const franklin = Libre_Franklin({
   variable: "--font-franklin",
@@ -14,12 +21,75 @@ const sourceSerif = Source_Serif_4({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: {
-    default: "Trump Tracker — Arquivo de Aberrações",
-    template: "%s | Trump Tracker",
+    default: SITE_TITLE,
+    template: `%s | ${SITE_NAME}`,
   },
-  description:
-    "Monitoramento independente que documenta e classifica eventos sem precedente histórico da presidência americana, com fontes verificáveis.",
+  description: SITE_DESCRIPTION,
+  applicationName: SITE_NAME,
+  keywords: [
+    "Trump",
+    "presidência americana",
+    "aberration score",
+    "monitoramento político",
+    "arquivo factual",
+    "eventos sem precedente",
+  ],
+  openGraph: {
+    siteName: SITE_NAME,
+    type: "website",
+    locale: "pt_BR",
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
+  },
+  formatDetection: {
+    telephone: false,
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0A3161",
+  width: "device-width",
+  initialScale: 1,
+};
+
+/** JSON-LD do site — WebSite + Organization (schema.org) */
+const siteJsonLd = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": `${SITE_URL}/#organization`,
+      name: SITE_NAME,
+      url: SITE_URL,
+      logo: `${SITE_URL}/icon`,
+      description: SITE_DESCRIPTION,
+    },
+    {
+      "@type": "WebSite",
+      "@id": `${SITE_URL}/#website`,
+      name: SITE_TITLE,
+      url: SITE_URL,
+      inLanguage: "pt-BR",
+      publisher: { "@id": `${SITE_URL}/#organization` },
+    },
+  ],
 };
 
 export default function RootLayout({
@@ -33,6 +103,7 @@ export default function RootLayout({
       className={`${franklin.variable} ${sourceSerif.variable} h-full antialiased`}
     >
       <body className="flex min-h-svh flex-col bg-background text-foreground">
+        <JsonLd data={siteJsonLd} />
         <Header />
         <div className="mx-auto w-full max-w-6xl flex-1">{children}</div>
         <footer className="mt-16 border-t border-border bg-muted/50">

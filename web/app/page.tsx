@@ -1,10 +1,64 @@
+import type { Metadata } from "next";
 import { unstable_cache } from "next/cache";
 import { getSupabase } from "@/lib/supabase";
 import { VALID_CATEGORIES, type Event } from "@/lib/events";
 import { SEVERITY_LEGEND } from "@/lib/severity";
+import { SITE_NAME } from "@/lib/site";
 import CategoryFilter from "@/components/CategoryFilter";
 import InfiniteScroll from "@/components/InfiniteScroll";
 import { cn } from "@/lib/utils";
+
+/** Frases por categoria para title/description únicos (evita duplicação com a home) */
+const CATEGORY_PHRASES: Record<string, string> = {
+  Institucional: "Aberrações institucionais",
+  Econômico: "Aberrações econômicas",
+  Diplomático: "Aberrações diplomáticas",
+  Jurídico: "Aberrações jurídicas",
+  Militar: "Aberrações militares",
+  Social: "Aberrações sociais",
+  Comunicação: "Aberrações de comunicação",
+};
+
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: Promise<{ category?: string }>;
+}): Promise<Metadata> {
+  const { category: rawCat } = await searchParams;
+  const category =
+    rawCat && (VALID_CATEGORIES as readonly string[]).includes(rawCat)
+      ? rawCat
+      : null;
+
+  // Home sem filtro (ou filtro inválido): herda title/description do layout
+  if (!category) {
+    return { alternates: { canonical: "/" } };
+  }
+
+  const phrase = CATEGORY_PHRASES[category] ?? `Aberrações — ${category}`;
+  // O template "%s | Trump Tracker" do layout NÃO se aplica a page.tsx do
+  // mesmo segmento (doc generate-metadata.md) — sufixo manual.
+  const title = `${phrase} da presidência Trump | ${SITE_NAME}`;
+  const description =
+    `${phrase} sem precedente histórico da presidência americana, ` +
+    `documentadas com fontes verificáveis e classificadas pelo Aberration Score.`;
+  const canonical = `/?category=${encodeURIComponent(category)}`;
+
+  return {
+    title,
+    description,
+    alternates: { canonical },
+    openGraph: {
+      title,
+      description,
+      url: canonical,
+    },
+    twitter: {
+      title,
+      description,
+    },
+  };
+}
 
 function makeInitialFetcher(category: string | null) {
   return unstable_cache(
@@ -117,9 +171,17 @@ export default async function HomePage({
             {formattedTotal}
           </span>
           <div className="flex flex-col gap-1">
-            <p className="text-xl font-bold leading-tight sm:text-2xl">
+            {/* h1 da página — número visível no span ao lado (aria-hidden seria
+                redundante; o sr-only repete o total para leitores e crawlers) */}
+            <h1 className="text-xl font-bold leading-tight tracking-normal sm:text-2xl">
+              <span className="sr-only">{formattedTotal} </span>
               aberrações documentadas
-            </p>
+              <span className="sr-only">
+                {" "}
+                — eventos sem precedente da presidência americana
+                {category ? ` na categoria ${category}` : ""}
+              </span>
+            </h1>
             {stats.since && (
               <p className="text-sm text-muted-foreground">
                 desde {formatLongDate(stats.since)}

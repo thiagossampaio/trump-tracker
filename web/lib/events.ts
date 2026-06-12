@@ -21,10 +21,27 @@ export type ScoreBreakdown = {
   system_reaction: number;  // 0–2
 };
 
+/**
+ * Fontes secundárias: o pipeline grava objetos {url, name, tier}, mas
+ * registros antigos podem conter strings (URLs puras). Normalizar com
+ * getSecondarySource() antes de renderizar.
+ */
+export type SecondarySource =
+  | string
+  | { url: string; name?: string; tier?: number };
+
 export type EventDetail = Event & {
   score_breakdown: ScoreBreakdown | null;
-  secondary_sources: string[] | null;
+  secondary_sources: SecondarySource[] | null;
 };
+
+export function getSecondarySource(src: SecondarySource): {
+  url: string;
+  name: string | null;
+} {
+  if (typeof src === "string") return { url: src, name: null };
+  return { url: src.url, name: src.name?.trim() || null };
+}
 
 export const VALID_CATEGORIES = [
   "Institucional",
