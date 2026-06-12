@@ -17,6 +17,14 @@ export default function manifest(): MetadataRoute.Manifest {
         src: "/icon",
         sizes: "512x512",
         type: "image/png",
+        purpose: "any",
+      },
+      {
+        // Artwork full-bleed com pulso na zona segura central — serve como maskable
+        src: "/icon",
+        sizes: "512x512",
+        type: "image/png",
+        purpose: "maskable",
       },
       {
         src: "/apple-icon",

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <title>Trump Tracker</title>
+  <rect width="100" height="100" rx="22" fill="#0A3161"/>
+  <path d="M1.93 87H98.07A22 22 0 0 1 78 100H22A22 22 0 0 1 1.93 87Z" fill="#B31942"/>
+  <path d="M14 55H36L46 24L56 72L62 55H86" fill="none" stroke="#FFFFFF" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
