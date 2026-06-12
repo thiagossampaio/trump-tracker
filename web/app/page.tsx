@@ -5,8 +5,16 @@ import { VALID_CATEGORIES, type Event } from "@/lib/events";
 import { SEVERITY_LEGEND } from "@/lib/severity";
 import { SITE_NAME } from "@/lib/site";
 import CategoryFilter from "@/components/CategoryFilter";
-import InfiniteScroll from "@/components/InfiniteScroll";
+import EventFeed from "@/components/EventFeed";
+import Pagination from "@/components/Pagination";
 import { cn } from "@/lib/utils";
+
+const PAGE_SIZE = 20;
+
+function parsePage(raw: string | undefined): number {
+  const n = parseInt(raw ?? "1", 10);
+  return Number.isFinite(n) && n >= 1 ? n : 1;
+}
 
 /** Frases por categoria para title/description únicos (evita duplicação com a home) */
 const CATEGORY_PHRASES: Record<string, string> = {
@@ -22,27 +30,40 @@ const CATEGORY_PHRASES: Record<string, string> = {
 export async function generateMetadata({
   searchParams,
 }: {
-  searchParams: Promise<{ category?: string }>;
+  searchParams: Promise<{ category?: string; page?: string }>;
 }): Promise<Metadata> {
-  const { category: rawCat } = await searchParams;
+  const { category: rawCat, page: rawPage } = await searchParams;
   const category =
     rawCat && (VALID_CATEGORIES as readonly string[]).includes(rawCat)
       ? rawCat
       : null;
+  const page = parsePage(rawPage);
+  const pageSuffix = page > 1 ? ` — página ${page}` : "";
 
-  // Home sem filtro (ou filtro inválido): herda title/description do layout
+  // Canonical preserva categoria e página (mesma forma dos links da paginação)
+  const params = new URLSearchParams();
+  if (category) params.set("category", category);
+  if (page > 1) params.set("page", String(page));
+  const qs = params.toString();
+  const canonical = qs ? `/?${qs}` : "/";
+
+  // Home sem filtro: herda title/description do layout (com sufixo de página)
   if (!category) {
-    return { alternates: { canonical: "/" } };
+    return {
+      ...(page > 1 && {
+        title: `Arquivo de aberrações${pageSuffix} | ${SITE_NAME}`,
+      }),
+      alternates: { canonical },
+    };
   }
 
   const phrase = CATEGORY_PHRASES[category] ?? `Aberrações — ${category}`;
   // O template "%s | Trump Tracker" do layout NÃO se aplica a page.tsx do
   // mesmo segmento (doc generate-metadata.md) — sufixo manual.
-  const title = `${phrase} da presidência Trump | ${SITE_NAME}`;
+  const title = `${phrase} da presidência Trump${pageSuffix} | ${SITE_NAME}`;
   const description =
     `${phrase} sem precedente histórico da presidência americana, ` +
     `documentadas com fontes verificáveis e classificadas pelo Aberration Score.`;
-  const canonical = `/?category=${encodeURIComponent(category)}`;
 
   return {
     title,
@@ -60,11 +81,17 @@ export async function generateMetadata({
   };
 }
 
-function makeInitialFetcher(category: string | null) {
+/**
+ * Busca uma página do feed via offset (paginação convencional).
+ * Numeração inteira na URL evita o bug de double-decode de timestamps
+ * com "+" no OpenNext/Cloudflare (cursor "2026-…+00:00" virava espaço).
+ */
+function makePageFetcher(category: string | null, page: number) {
   return unstable_cache(
     async () => {
       try {
         const supabase = getSupabase();
+        const from = (page - 1) * PAGE_SIZE;
         let query = supabase
           .from("public_feed")
           .select(
@@ -72,23 +99,20 @@ function makeInitialFetcher(category: string | null) {
             { count: "exact" }
           )
           .order("occurred_at", { ascending: false })
-          .limit(21);
+          .range(from, from + PAGE_SIZE - 1);
 
         if (category) query = query.eq("category", category);
 
         const { data, count, error } = await query;
         if (error) throw error;
 
-        const hasMore = (data?.length ?? 0) > 20;
-        const events = (hasMore ? data!.slice(0, 20) : (data ?? [])) as Event[];
-        const nextCursor = hasMore ? events[events.length - 1].occurred_at : null;
-
-        return { events, nextCursor, total: count ?? 0 };
+        return { events: (data ?? []) as Event[], total: count ?? 0 };
       } catch {
-        return { events: [] as Event[], nextCursor: null, total: 0 };
+        // Inclui offset além do total (PostgREST 416) — página vazia
+        return { events: [] as Event[], total: 0 };
       }
     },
-    ["page-initial-events", category ?? "all"],
+    ["page-events", category ?? "all", String(page)],
     { tags: ["events-feed"], revalidate: 120 }
   );
 }
@@ -142,18 +166,20 @@ function formatLongDate(iso: string): string {
 export default async function HomePage({
   searchParams,
 }: {
-  searchParams: Promise<{ category?: string }>;
+  searchParams: Promise<{ category?: string; page?: string }>;
 }) {
-  const { category: rawCat } = await searchParams;
+  const { category: rawCat, page: rawPage } = await searchParams;
   const category =
     rawCat && (VALID_CATEGORIES as readonly string[]).includes(rawCat)
       ? rawCat
       : null;
+  const page = parsePage(rawPage);
 
-  const [{ events, nextCursor }, stats] = await Promise.all([
-    makeInitialFetcher(category)(),
+  const [{ events, total }, stats] = await Promise.all([
+    makePageFetcher(category, page)(),
     getFeedStats(),
   ]);
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   const formattedTotal = new Intl.NumberFormat("pt-BR").format(stats.total);
   const daysTracking = stats.daysTracking;
@@ -236,12 +262,8 @@ export default async function HomePage({
       </section>
 
       <CategoryFilter currentCategory={category} />
-      <InfiniteScroll
-        key={category ?? "all"}
-        initialEvents={events}
-        initialNextCursor={nextCursor}
-        category={category}
-      />
+      <EventFeed events={events} />
+      <Pagination page={page} totalPages={totalPages} category={category} />
     </main>
   );
 }
