@@ -1,7 +1,5 @@
 import { ImageResponse } from "next/og";
 
-export const runtime = "edge";
-
 export const alt =
   "Trump Tracker — Arquivo de aberrações da presidência americana, com fontes verificáveis";
 export const size = { width: 1200, height: 630 };

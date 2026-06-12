@@ -2,8 +2,6 @@ import { ImageResponse } from "next/og";
 import { createClient } from "@supabase/supabase-js";
 import { getSeverity } from "@/lib/severity";
 
-export const runtime = "edge";
-
 const NAVY = "#0A3161";
 const RED = "#B31942";
 

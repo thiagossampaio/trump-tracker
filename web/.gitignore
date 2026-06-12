@@ -41,3 +41,6 @@ yarn-error.log*
 next-env.d.ts
 .open-next/
 .wrangler/
+
+# secrets locais do preview (wrangler dev)
+.dev.vars
