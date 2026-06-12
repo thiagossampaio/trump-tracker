@@ -12,7 +12,12 @@
  *   5. Retorna 200 em todos os casos (evita retentativas do Telegram)
  *
  * Secrets necessários (wrangler secret put):
- *   SUPABASE_URL, SUPABASE_KEY, TELEGRAM_BOT_TOKEN
+ *   SUPABASE_URL, SUPABASE_KEY, TELEGRAM_BOT_TOKEN, TELEGRAM_WEBHOOK_SECRET
+ *
+ * O TELEGRAM_WEBHOOK_SECRET deve ser o mesmo passado em setWebhook
+ * (secret_token) — o Telegram o envia no header
+ * X-Telegram-Bot-Api-Secret-Token e validamos aqui para impedir que
+ * terceiros forjem aprovações conhecendo a URL do worker.
  */
 
 export default {
@@ -20,6 +25,12 @@ export default {
     // Telegram só envia POST — qualquer outra coisa retorna 200 silenciosamente
     if (request.method !== "POST") {
       return new Response("OK", { status: 200 });
+    }
+
+    // Valida o secret do webhook (anti-forgery)
+    const secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token");
+    if (!env.TELEGRAM_WEBHOOK_SECRET || secret !== env.TELEGRAM_WEBHOOK_SECRET) {
+      return new Response("Forbidden", { status: 403 });
     }
 
     let body;
@@ -56,16 +67,43 @@ export default {
     }
 
     const newStatus = action === "publish" ? "approved_manual" : "rejected";
-    const label = action === "publish" ? "✅ Publicado!" : "❌ Rejeitado";
+    const label = action === "publish" ? "✅ Aprovado para publicação" : "❌ Rejeitado";
 
     await Promise.all([
       updateSupabase(env, articleId, newStatus),
       answerCallback(env, query.id, label),
+      // Remove os botões e registra o veredito no card (evita duplo clique)
+      finalizeMessage(env, query, label),
     ]);
 
     return new Response("OK", { status: 200 });
   },
 };
+
+/**
+ * Edita a mensagem original: remove o teclado inline e anexa o veredito.
+ */
+async function finalizeMessage(env, query, label) {
+  const message = query.message;
+  if (!message) return;
+
+  const url = `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/editMessageText`;
+  const reviewer = query.from?.first_name || query.from?.username || "revisor";
+  try {
+    await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: message.chat.id,
+        message_id: message.message_id,
+        text: `${message.text}\n\n━━━━━━━━━━\n${label} por ${reviewer}`,
+        // sem reply_markup → teclado removido
+      }),
+    });
+  } catch (err) {
+    console.error(`editMessageText falhou: ${err}`);
+  }
+}
 
 /**
  * Atualiza raw_articles.status via Supabase REST API.
