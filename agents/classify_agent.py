@@ -336,16 +336,27 @@ def validate_article_result(result: dict) -> bool:
 
 
 def route_by_score(result: dict) -> tuple[str, bool]:
+    """
+    Roteia por score:
+      <= 3  → rejected
+      >= 4  → classified; segue por dedup→publish automaticamente,
+              EXCETO quando confidence == 'low' (vai para revisão humana
+              no Telegram).
+
+    Política (2026-06-15): score >= 8 deixou de exigir revisão humana
+    obrigatória — o dedup é confiável e o soft-merge torna tudo reversível.
+    Antes, os eventos de alta aberração (o conteúdo-herói do produto)
+    ficavam presos na fila e nunca chegavam ao feed. A única ressalva
+    mantida é confidence == 'low': aí o caso vai para revisão.
+    """
     score = result["score"]
     confidence = result.get("confidence", "high")
 
     if score <= 3:
         return "rejected", False
-    elif score <= 7:
-        needs_review = confidence == "low"
-        return "classified", needs_review
-    else:  # >= 8
-        return "classified", True
+
+    needs_review = confidence == "low"
+    return "classified", needs_review
 
 
 def build_update_payload(result: dict, new_status: str, needs_review: bool) -> dict:
